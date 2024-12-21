@@ -4,12 +4,13 @@ import path from 'path';
 import { extractTextFromPDF } from '../../utils/pdfUtils';
 import { transcribeAudio } from '../../utils/audioUtils';
 import { splitTextIntoChunks } from '../../utils/textProcessing';
+import { generateEmbedding } from '../../utils/embeddingUtils';
+import { upsertVectors, getIndexStats } from '../../utils/pineconeUtils';
 
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
+// Validate environment variables
+if (!process.env.OPENAI_API_KEY) {
+  throw new Error('Missing OPENAI_API_KEY environment variable. Please check your .env file.');
+}
 
 const uploadDir = path.join(process.cwd(), 'tmp/uploads');
 
@@ -17,6 +18,12 @@ const uploadDir = path.join(process.cwd(), 'tmp/uploads');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
+
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -69,6 +76,45 @@ export default async function handler(req, res) {
         })
       });
 
+      // Generate embeddings for each chunk
+      const chunksWithEmbeddings = await Promise.all(
+        chunks.map(async (chunk) => {
+          try {
+            const embedding = await generateEmbedding(chunk.pageContent);
+            return {
+              text: chunk.pageContent,
+              metadata: chunk.metadata,
+              embedding
+            };
+          } catch (error) {
+            console.error('Error generating embedding for chunk:', error);
+            return {
+              text: chunk.pageContent,
+              metadata: chunk.metadata,
+              embedding: null
+            };
+          }
+        })
+      );
+
+      // Store embeddings in Pinecone
+      try {
+        const result = await upsertVectors(chunksWithEmbeddings, file.originalFilename);
+        console.log('Pinecone upsert result:', result);
+        
+        // Get updated index stats
+        const stats = await getIndexStats();
+        console.log('Pinecone Index Stats:', {
+          totalVectors: stats.totalRecordCount,
+          dimension: stats.dimension,
+          namespaces: stats.namespaces,
+          indexFullness: `${(stats.indexFullness * 100).toFixed(2)}%`
+        });
+      } catch (error) {
+        console.error('Error storing vectors in Pinecone:', error);
+        // Don't throw error to maintain app flow - just log it
+      }
+
       return res.status(200).json({
         message: 'File uploaded and processed successfully',
         filename: file.originalFilename,
@@ -83,10 +129,7 @@ export default async function handler(req, res) {
             duration: extractedData.duration,
             info: extractedData.info
           }),
-          chunks: chunks.map(doc => ({
-            text: doc.pageContent,
-            metadata: doc.metadata
-          }))
+          chunks: chunksWithEmbeddings
         }
       });
     } catch (error) {
