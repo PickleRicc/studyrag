@@ -1,5 +1,4 @@
 import { generateChatResponse } from '../../utils/chatUtils';
-import { getIndexStats } from '../../utils/pineconeUtils';
 
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
@@ -7,45 +6,35 @@ export default async function handler(req, res) {
     }
 
     try {
-        const { message, threadId, messageHistory = [], activeFiles = [] } = req.body;
+        const { message, messageHistory = [], activeFiles = [] } = req.body;
 
-        // Validate request
         if (!message) {
             return res.status(400).json({ error: 'Message is required' });
         }
 
-        // Log request details
-        console.log('\n=== Chat Request ===');
+        console.log('=== Chat API Request ===');
         console.log('Message:', message);
-        console.log('Thread ID:', threadId);
-        console.log('History Length:', messageHistory.length);
         console.log('Active Files:', activeFiles);
 
-        // Check Pinecone status
-        const stats = await getIndexStats();
-        console.log('Pinecone Stats:', stats);
-
-        // Generate response
         const response = await generateChatResponse(message, messageHistory, activeFiles);
+        console.log('=== Chat API Response ===');
+        console.log('Response:', response);
 
-        // Create new message
-        const newMessage = {
-            role: 'assistant',
-            content: response.content,
-            sources: response.sources
+        // Ensure we're sending the exact format the frontend expects
+        const responseData = {
+            message: response.content,
+            sources: response.sources || []
         };
+        console.log('=== Sending to Frontend ===');
+        console.log('Response Data:', responseData);
 
-        // Return response
-        res.status(200).json({
-            threadId: threadId || Date.now().toString(),
-            messages: [...messageHistory, { role: 'user', content: message }, newMessage]
-        });
+        res.status(200).json(responseData);
 
     } catch (error) {
         console.error('Error in chat endpoint:', error);
-        res.status(500).json({
+        res.status(500).json({ 
             error: 'Failed to process message',
-            details: error.message
+            details: error.message 
         });
     }
 }
