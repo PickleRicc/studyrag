@@ -1,0 +1,122 @@
+import { START, END, MessagesAnnotation, StateGraph, MemorySaver } from "@langchain/langgraph";
+import { ChatOpenAI } from "@langchain/openai";
+import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
+import { searchDocuments } from './queryUtils';
+import { isVagueQuery, handleSpecificQuery, handleVagueQuery } from './queryHandlers';
+
+const llm = new ChatOpenAI({
+    model: "gpt-4",
+    temperature: 0
+});
+
+/**
+ * Format chat history for context
+ */
+function formatChatHistory(messages) {
+    return messages
+        .map(msg => `${msg.role}: ${msg.content}`)
+        .join('\n');
+}
+
+/**
+ * Process message and generate response using RAG
+ */
+const callModel = async (state) => {
+    try {
+        // Validate state
+        if (!state?.messages?.length) {
+            console.error('Invalid state:', state);
+            throw new Error('Invalid state: missing messages');
+        }
+
+        const latestMessage = state.messages[state.messages.length - 1];
+        console.log('\n=== Processing Chat Message ===');
+        console.log('Query:', latestMessage.content);
+        console.log('Active Files:', state.activeFiles);
+
+        // Check for active files
+        if (!Array.isArray(state.activeFiles) || state.activeFiles.length === 0) {
+            return {
+                messages: [...state.messages, {
+                    role: 'assistant',
+                    content: "I don't have access to any documents. Please upload a document first."
+                }],
+                activeFiles: []
+            };
+        }
+
+        // Search for relevant content
+        const searchResponse = await searchDocuments(latestMessage.content, {
+            fileNames: state.activeFiles,
+            topK: 5
+        });
+
+        if (!searchResponse.results?.length) {
+            return {
+                messages: [...state.messages, {
+                    role: 'assistant',
+                    content: "I couldn't find any relevant information in the documents for your question."
+                }],
+                activeFiles: state.activeFiles
+            };
+        }
+
+        // Determine query type and get initial response
+        const isVague = isVagueQuery(latestMessage.content);
+        const response = isVague
+            ? await handleVagueQuery(latestMessage.content, searchResponse)
+            : await handleSpecificQuery(latestMessage.content, searchResponse);
+
+        // Format chat history and context
+        const chatHistory = formatChatHistory(state.messages.slice(-3)); // Last 3 messages for context
+        const systemPrompt = `You are a helpful AI assistant analyzing documents and maintaining a conversation.
+
+Previous Chat Context:
+${chatHistory}
+
+Document Context:
+${searchResponse.results.map(r => `[${r.fileName}]: ${r.text}`).join('\n\n')}
+
+Instructions:
+1. Use the document context to inform your response
+2. Maintain conversation continuity with the chat history
+3. If information isn't in the documents or chat history, say so
+4. Be clear about which document you're referencing
+5. Keep responses focused and relevant`;
+
+        // Generate final response considering chat history
+        const messages = [
+            new SystemMessage(systemPrompt),
+            ...state.messages.slice(-3).map(msg => 
+                msg.role === 'user' ? new HumanMessage(msg.content) : new AIMessage(msg.content)
+            )
+        ];
+
+        const chatResponse = await llm.invoke(messages);
+
+        // Return updated state
+        return {
+            messages: [...state.messages, {
+                role: 'assistant',
+                content: chatResponse.content,
+                sources: response.sources
+            }],
+            activeFiles: state.activeFiles
+        };
+
+    } catch (error) {
+        console.error('Error in callModel:', error);
+        throw error;
+    }
+};
+
+const createChatWorkflow = () => {
+    const workflow = new StateGraph(MessagesAnnotation)
+        .addNode("model", callModel)
+        .addEdge(START, "model")
+        .addEdge("model", END);
+
+    return workflow.compile({ checkpointer: new MemorySaver() });
+};
+
+export { createChatWorkflow };

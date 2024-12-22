@@ -1,9 +1,11 @@
 import FileUpload from '../components/FileUpload';
 import QueryInterface from '../components/QueryInterface';
+import ChatInterface from '../components/ChatInterface';
 import { useState } from 'react';
 
 export default function Home() {
   const [processedFiles, setProcessedFiles] = useState([]);
+  const [mode, setMode] = useState('query'); // 'query' or 'chat'
 
   const handleUploadSuccess = (results) => {
     setProcessedFiles(results);
@@ -38,8 +40,40 @@ export default function Home() {
                 ))}
               </div>
             </div>
+
+            {/* Mode Toggle */}
+            <div className="flex justify-center mb-6">
+              <div className="inline-flex rounded-md shadow-sm" role="group">
+                <button
+                  type="button"
+                  onClick={() => setMode('query')}
+                  className={`px-4 py-2 text-sm font-medium rounded-l-lg ${
+                    mode === 'query'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-white text-gray-700 hover:bg-gray-50'
+                  } border border-gray-200`}
+                >
+                  Single Query
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode('chat')}
+                  className={`px-4 py-2 text-sm font-medium rounded-r-lg ${
+                    mode === 'chat'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-white text-gray-700 hover:bg-gray-50'
+                  } border border-l-0 border-gray-200`}
+                >
+                  Chat Mode
+                </button>
+              </div>
+            </div>
             
-            <QueryInterface processedFiles={processedFiles} />
+            {mode === 'query' ? (
+              <QueryInterface processedFiles={processedFiles} />
+            ) : (
+              <ChatInterface activeFiles={processedFiles.map(f => f.fileName)} />
+            )}
           </div>
         )}
       </div>

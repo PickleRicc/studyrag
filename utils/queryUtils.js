@@ -8,6 +8,10 @@ async function queryPineconeIndex(queryVector, options = {}) {
     const { topK = 5, includeValues = false, fileNames = [] } = options;
 
     try {
+        // Clean up filenames - decode URL encoding
+        const cleanFileNames = fileNames.map(name => decodeURIComponent(name));
+        console.log('Querying Pinecone for files:', cleanFileNames);
+        
         const queryOptions = {
             vector: queryVector,
             topK: topK,
@@ -15,13 +19,16 @@ async function queryPineconeIndex(queryVector, options = {}) {
             includeMetadata: true
         };
 
-        if (fileNames.length > 0) {
+        if (cleanFileNames.length > 0) {
             queryOptions.filter = {
-                fileName: { $in: fileNames }
+                fileName: { $in: cleanFileNames }
             };
         }
 
+        console.log('Pinecone query options:', queryOptions);
         const queryResponse = await index.query(queryOptions);
+        console.log('Raw Pinecone response:', JSON.stringify(queryResponse, null, 2));
+        
         return queryResponse;
     } catch (error) {
         console.error('Error querying Pinecone:', error);
@@ -34,23 +41,33 @@ async function queryPineconeIndex(queryVector, options = {}) {
  */
 async function searchDocuments(queryText, options = {}) {
     try {
+        console.log('Starting document search for:', queryText);
+        console.log('Search options:', options);
+        
         const queryVector = await generateEmbedding(queryText);
+        
         const queryResponse = await queryPineconeIndex(queryVector, {
             ...options,
             includeValues: false
         });
 
-        const results = queryResponse.matches.map(match => ({
-            id: match.id,
-            score: match.score,
-            fileName: match.metadata.fileName,
-            text: match.metadata.text
-        }));
+        if (!queryResponse.matches || queryResponse.matches.length === 0) {
+            console.log('No matches found in Pinecone');
+            return { results: [] };
+        }
 
-        return {
-            results,
-            usage: queryResponse.usage
-        };
+        const results = queryResponse.matches.map(match => {
+            console.log('Processing match:', match);
+            return {
+                id: match.id,
+                score: match.score,
+                fileName: match.metadata.fileName,
+                text: match.metadata.text
+            };
+        });
+
+        console.log('Processed results:', results);
+        return { results };
     } catch (error) {
         console.error('Error searching documents:', error);
         throw error;
