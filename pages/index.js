@@ -3,13 +3,36 @@ import Chat from '../components/Chat';
 import FileUpload from '../components/FileUpload';
 import QueryInterface from '../components/QueryInterface';
 import { useState } from 'react';
+import { useActiveFiles } from '../hooks/useActiveFiles';
 
 export default function Home() {
-    const [processedFiles, setProcessedFiles] = useState([]);
     const [mode, setMode] = useState('query'); // 'query' or 'chat'
+    const { activeFiles, setActiveFiles, addActiveFile, removeActiveFile } = useActiveFiles();
 
-    const handleUploadSuccess = (results) => {
-        setProcessedFiles(prev => [...prev, ...results]);
+    const handleUploadSuccess = (data) => {
+        // Add new file to active files
+        if (data.fileName) {
+            addActiveFile(data.fileName);
+        }
+    };
+
+    const handleDeleteFile = async (indexToDelete) => {
+        const fileToDelete = activeFiles[indexToDelete];
+        
+        try {
+            const response = await fetch(`/api/deleteFile?fileName=${encodeURIComponent(fileToDelete)}`, {
+                method: 'DELETE',
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to delete file');
+            }
+
+            // Remove from active files
+            removeActiveFile(fileToDelete);
+        } catch (error) {
+            console.error('Error deleting file:', error);
+        }
     };
 
     return (
@@ -59,19 +82,38 @@ export default function Home() {
 
                 <FileUpload onUploadSuccess={handleUploadSuccess} />
                 
-                {processedFiles.length > 0 && (
+                {activeFiles.length > 0 && (
                     <div className="flex-1">
                         <div className="bg-white rounded-lg shadow-sm p-4 mb-8">
                             <h2 className="text-lg font-medium text-gray-900 mb-2">
                                 📚 Available Documents
                             </h2>
                             <div className="flex flex-wrap gap-2">
-                                {processedFiles.map((file, index) => (
+                                {activeFiles.map((fileName, index) => (
                                     <span
                                         key={index}
-                                        className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800"
+                                        className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800 group"
                                     >
-                                        {file.fileName}
+                                        {fileName}
+                                        <button
+                                            onClick={() => handleDeleteFile(index)}
+                                            className="ml-2 text-indigo-600 hover:text-indigo-800 focus:outline-none"
+                                            aria-label="Delete document"
+                                        >
+                                            <svg 
+                                                className="w-4 h-4" 
+                                                fill="none" 
+                                                stroke="currentColor" 
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path 
+                                                    strokeLinecap="round" 
+                                                    strokeLinejoin="round" 
+                                                    strokeWidth={2} 
+                                                    d="M6 18L18 6M6 6l12 12" 
+                                                />
+                                            </svg>
+                                        </button>
                                     </span>
                                 ))}
                             </div>
@@ -100,15 +142,15 @@ export default function Home() {
                                             : 'bg-white text-gray-700 hover:bg-gray-50'
                                     } border border-l-0 border-gray-200`}
                                 >
-                                    Chat Mode
+                                    Chat
                                 </button>
                             </div>
                         </div>
 
                         {mode === 'query' ? (
-                            <QueryInterface processedFiles={processedFiles} />
+                            <QueryInterface />
                         ) : (
-                            <Chat />
+                            <Chat processedFiles={activeFiles} />
                         )}
                     </div>
                 )}

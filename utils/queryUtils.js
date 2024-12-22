@@ -23,6 +23,8 @@ async function queryPineconeIndex(queryVector, options = {}) {
             queryOptions.filter = {
                 fileName: { $in: cleanFileNames }
             };
+            console.log('Filtering by file names:', cleanFileNames);
+            console.log('Filter query:', queryOptions.filter);
         }
 
         console.log('Pinecone query options:', queryOptions);

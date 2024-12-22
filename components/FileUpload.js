@@ -8,12 +8,15 @@ export default function FileUpload({ onUploadSuccess }) {
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState(null);
     const [progress, setProgress] = useState({ current: 0, total: 0 });
-    const { addActiveFile } = useActiveFiles();
+    const { addActiveFile, setActiveFiles } = useActiveFiles();
 
     const uploadFiles = async (files) => {
         setError(null);
         setUploading(true);
         setProgress({ current: 0, total: files.length });
+
+        // Clear active files when starting a new upload
+        setActiveFiles([]);
 
         const results = [];
         const errors = [];
@@ -30,6 +33,7 @@ export default function FileUpload({ onUploadSuccess }) {
                 const formData = new FormData();
                 formData.append('file', file);
                 formData.append('fileType', file.type);
+                formData.append('isFirstFile', i === 0 ? 'true' : 'false');
 
                 const response = await fetch('/api/upload', {
                     method: 'POST',
@@ -41,7 +45,12 @@ export default function FileUpload({ onUploadSuccess }) {
                 }
 
                 const data = await response.json();
-                results.push({ ...data, fileName: file.name, fileType: file.type });
+                if (data.fileName) {
+                    results.push({
+                        fileName: data.fileName,
+                        type: file.type
+                    });
+                }
                 addActiveFile(file.name);
             } catch (err) {
                 errors.push(`${file.name}: ${err.message}`);
@@ -55,7 +64,8 @@ export default function FileUpload({ onUploadSuccess }) {
         }
 
         if (results.length > 0 && onUploadSuccess) {
-            onUploadSuccess(results);
+            // Pass first result since we're uploading one at a time
+            onUploadSuccess(results[0]);
         }
     };
 

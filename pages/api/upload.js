@@ -6,6 +6,7 @@ import { transcribeAudio } from '../../utils/audioUtils';
 import { splitTextIntoChunks } from '../../utils/textProcessing';
 import { generateEmbedding } from '../../utils/embeddingUtils';
 import { upsertVectors, getIndexStats } from '../../utils/pineconeUtils';
+import { addFileToActive, getActiveFiles, clearActiveFiles } from '../../utils/fileManagement';
 
 // Validate environment variables
 if (!process.env.OPENAI_API_KEY) {
@@ -46,11 +47,18 @@ export default async function handler(req, res) {
 
     const file = files.file[0];
     const fileType = fields.fileType?.[0] || file.mimetype;
+    const isFirstFile = fields.isFirstFile?.[0] === 'true';
 
     // Validate file type
     if (!fileType.includes('pdf') && !fileType.includes('audio')) {
       fs.unlinkSync(file.filepath);
       return res.status(400).json({ error: 'Invalid file type' });
+    }
+
+    // Clear active files if this is the first file in a new session
+    if (isFirstFile) {
+      clearActiveFiles();
+      console.log('Cleared active files for new session');
     }
 
     let extractedData;
@@ -115,33 +123,21 @@ export default async function handler(req, res) {
         // Don't throw error to maintain app flow - just log it
       }
 
+      // Add to active files
+      addFileToActive(file.originalFilename);
+      console.log('Added file to active files:', file.originalFilename);
+      console.log('Current active files:', getActiveFiles());
+
+      console.log(`File uploaded and processed successfully: ${file.originalFilename} (${fileType})`);
+
       return res.status(200).json({
         message: 'File uploaded and processed successfully',
-        filename: file.originalFilename,
-        filepath: file.filepath,
-        fileType: fileType.includes('pdf') ? 'pdf' : 'audio',
-        extracted: {
-          text: extractedData.text,
-          ...(fileType.includes('pdf') ? {
-            numPages: extractedData.numPages,
-            info: extractedData.info
-          } : {
-            duration: extractedData.duration,
-            info: extractedData.info
-          }),
-          chunks: chunksWithEmbeddings
-        }
+        fileName: file.originalFilename,
+        type: fileType
       });
     } catch (error) {
       console.error('Processing error:', error);
       return res.status(500).json({ error: `Failed to process ${fileType.includes('pdf') ? 'PDF' : 'audio'} file` });
-    } finally {
-      // Clean up: delete the temporary file
-      try {
-        fs.unlinkSync(file.filepath);
-      } catch (err) {
-        console.error('Error deleting temporary file:', err);
-      }
     }
   } catch (error) {
     console.error('Upload error:', error);

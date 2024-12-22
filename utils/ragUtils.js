@@ -58,13 +58,19 @@ async function getRelevantContext(query, activeFiles) {
  */
 async function generateAnswer(query, searchResults) {
     try {
+        console.log('Generating answer for query:', query);
+        console.log('Search results:', JSON.stringify(searchResults, null, 2));
+
         // Determine if the query is vague
         const isVague = isVagueQuery(query);
+        console.log('Query type:', isVague ? 'vague' : 'specific');
 
         // Handle query based on its type
         const response = isVague 
             ? await handleVagueQuery(query, searchResults)
             : await handleSpecificQuery(query, searchResults);
+
+        console.log('Generated response:', response);
 
         return {
             ...response,

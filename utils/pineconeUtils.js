@@ -79,17 +79,30 @@ async function upsertVectors(chunks, fileName) {
  */
 async function getIndexStats() {
   try {
-    const stats = await index.describeIndexStats();
-    return {
-      namespaces: stats.namespaces,
-      dimension: stats.dimension,
-      indexFullness: stats.indexFullness,
-      totalRecordCount: stats.totalRecordCount
-    };
+    const describeIndexStats = await index.describeIndexStats();
+    return describeIndexStats;
   } catch (error) {
     console.error('Error getting index stats:', error);
     throw error;
   }
 }
 
-export { index, upsertVectors, getIndexStats };
+/**
+ * Delete all vectors associated with a specific file
+ * @param {string} fileName - Name of the file whose vectors should be deleted
+ */
+async function deleteVectors(fileName) {
+  try {
+    // Delete all vectors where metadata.fileName matches
+    await index.deleteMany({
+      filter: {
+        fileName: { $eq: fileName }
+      }
+    });
+  } catch (error) {
+    console.error('Error deleting vectors:', error);
+    throw error;
+  }
+}
+
+export { index, upsertVectors, getIndexStats, deleteVectors };

@@ -49,8 +49,8 @@ async function getDocumentContext(query, activeFiles) {
     }
 
     try {
-        // Scale topK based on number of files (3 chunks per file, minimum 5)
-        const topK = Math.max(5, 3 * activeFiles.length);
+        // Scale topK based on number of files (5 chunks per file, minimum 5)
+        const topK = Math.max(5, 5 * activeFiles.length);
         console.log(`Using topK of ${topK} for ${activeFiles.length} files`);
 
         const searchResponse = await searchDocuments(query, {
