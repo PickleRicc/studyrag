@@ -3,14 +3,21 @@
 import { useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useActiveFiles } from '../hooks/useActiveFiles';
+import { useAuth } from '../context/AuthContext';
 
 export default function FileUpload({ onUploadSuccess }) {
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState(null);
     const [progress, setProgress] = useState({ current: 0, total: 0 });
     const { addActiveFile, setActiveFiles } = useActiveFiles();
+    const { user } = useAuth();
 
     const uploadFiles = async (files) => {
+        if (!user) {
+            setError('Please sign in to upload files');
+            return;
+        }
+
         setError(null);
         setUploading(true);
         setProgress({ current: 0, total: files.length });
@@ -34,6 +41,7 @@ export default function FileUpload({ onUploadSuccess }) {
                 formData.append('file', file);
                 formData.append('fileType', file.type);
                 formData.append('isFirstFile', i === 0 ? 'true' : 'false');
+                formData.append('userId', user.id);
 
                 const response = await fetch('/api/upload', {
                     method: 'POST',
@@ -48,7 +56,8 @@ export default function FileUpload({ onUploadSuccess }) {
                 if (data.fileName) {
                     results.push({
                         fileName: data.fileName,
-                        type: file.type
+                        type: file.type,
+                        documentId: data.documentId
                     });
                 }
                 addActiveFile(file.name);

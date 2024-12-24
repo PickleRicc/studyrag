@@ -7,6 +7,7 @@ import { splitTextIntoChunks } from '../../utils/textProcessing';
 import { generateEmbedding } from '../../utils/embeddingUtils';
 import { upsertVectors, getIndexStats } from '../../utils/pineconeUtils';
 import { addFileToActive, getActiveFiles, clearActiveFiles } from '../../utils/fileManagement';
+import { supabase } from '../../utils/supabase';
 
 // Validate environment variables
 if (!process.env.OPENAI_API_KEY) {
@@ -48,6 +49,12 @@ export default async function handler(req, res) {
     const file = files.file[0];
     const fileType = fields.fileType?.[0] || file.mimetype;
     const isFirstFile = fields.isFirstFile?.[0] === 'true';
+    const userId = fields.userId?.[0];
+
+    if (!userId) {
+      fs.unlinkSync(file.filepath);
+      return res.status(400).json({ error: 'User ID is required' });
+    }
 
     // Validate file type
     if (!fileType.includes('pdf') && !fileType.includes('audio')) {
@@ -59,6 +66,25 @@ export default async function handler(req, res) {
     if (isFirstFile) {
       clearActiveFiles();
       console.log('Cleared active files for new session');
+    }
+
+    // Create document record in Supabase
+    const { data: document, error: documentError } = await supabase
+      .from('documents')
+      .insert({
+        user_id: userId,
+        file_name: file.originalFilename,
+        file_path: file.filepath,
+        file_size: file.size,
+        embedding_status: 'processing'
+      })
+      .select()
+      .single();
+
+    if (documentError) {
+      console.error('Error creating document record:', documentError);
+      fs.unlinkSync(file.filepath);
+      return res.status(500).json({ error: 'Failed to create document record' });
     }
 
     let extractedData;
@@ -110,6 +136,19 @@ export default async function handler(req, res) {
         const result = await upsertVectors(chunksWithEmbeddings, file.originalFilename);
         console.log('Pinecone upsert result:', result);
         
+        // Update document status in Supabase
+        const { error: updateError } = await supabase
+          .from('documents')
+          .update({ 
+            embedding_status: 'completed',
+            pinecone_namespace: file.originalFilename
+          })
+          .eq('id', document.id);
+
+        if (updateError) {
+          console.error('Error updating document status:', updateError);
+        }
+
         // Get updated index stats
         const stats = await getIndexStats();
         console.log('Pinecone Index Stats:', {
@@ -120,7 +159,11 @@ export default async function handler(req, res) {
         });
       } catch (error) {
         console.error('Error storing vectors in Pinecone:', error);
-        // Don't throw error to maintain app flow - just log it
+        // Update document status to error
+        await supabase
+          .from('documents')
+          .update({ embedding_status: 'error' })
+          .eq('id', document.id);
       }
 
       // Add to active files
@@ -133,10 +176,16 @@ export default async function handler(req, res) {
       return res.status(200).json({
         message: 'File uploaded and processed successfully',
         fileName: file.originalFilename,
-        type: fileType
+        type: fileType,
+        documentId: document.id
       });
     } catch (error) {
       console.error('Processing error:', error);
+      // Update document status to error
+      await supabase
+        .from('documents')
+        .update({ embedding_status: 'error' })
+        .eq('id', document.id);
       return res.status(500).json({ error: `Failed to process ${fileType.includes('pdf') ? 'PDF' : 'audio'} file` });
     }
   } catch (error) {

@@ -4,10 +4,12 @@ import FileUpload from '../components/FileUpload';
 import QueryInterface from '../components/QueryInterface';
 import { useState } from 'react';
 import { useActiveFiles } from '../hooks/useActiveFiles';
+import { useAuth } from '../context/AuthContext';
 
 export default function Home() {
     const [mode, setMode] = useState('query'); // 'query' or 'chat'
-    const { activeFiles, setActiveFiles, addActiveFile, removeActiveFile } = useActiveFiles();
+    const { activeFiles, addActiveFile, removeActiveFile } = useActiveFiles();
+    const { user } = useAuth();
 
     const handleUploadSuccess = (data) => {
         // Add new file to active files
@@ -34,6 +36,24 @@ export default function Home() {
             console.error('Error deleting file:', error);
         }
     };
+
+    if (!user) {
+        return (
+            <div className="min-h-screen bg-gray-100 py-6 flex flex-col justify-center sm:py-12">
+                <div className="relative py-3 sm:max-w-xl sm:mx-auto">
+                    <div className="relative px-4 py-10 bg-white shadow-lg sm:rounded-3xl sm:p-20">
+                        <div className="max-w-md mx-auto">
+                            <div className="divide-y divide-gray-200">
+                                <div className="py-8 text-base leading-6 space-y-4 text-gray-700 sm:text-lg sm:leading-7">
+                                    <p>Please sign in to use StudyRag.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <Layout>
@@ -92,25 +112,18 @@ export default function Home() {
                                 {activeFiles.map((fileName, index) => (
                                     <span
                                         key={index}
-                                        className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800 group"
+                                        className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800"
                                     >
                                         {fileName}
                                         <button
                                             onClick={() => handleDeleteFile(index)}
-                                            className="ml-2 text-indigo-600 hover:text-indigo-800 focus:outline-none"
-                                            aria-label="Delete document"
+                                            className="ml-2 inline-flex items-center p-0.5 rounded-full text-blue-400 hover:bg-blue-200 hover:text-blue-600"
                                         >
-                                            <svg 
-                                                className="w-4 h-4" 
-                                                fill="none" 
-                                                stroke="currentColor" 
-                                                viewBox="0 0 24 24"
-                                            >
-                                                <path 
-                                                    strokeLinecap="round" 
-                                                    strokeLinejoin="round" 
-                                                    strokeWidth={2} 
-                                                    d="M6 18L18 6M6 6l12 12" 
+                                            <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                                                <path
+                                                    fillRule="evenodd"
+                                                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                                                    clipRule="evenodd"
                                                 />
                                             </svg>
                                         </button>
@@ -150,7 +163,7 @@ export default function Home() {
                         {mode === 'query' ? (
                             <QueryInterface />
                         ) : (
-                            <Chat processedFiles={activeFiles} />
+                            <Chat />
                         )}
                     </div>
                 )}

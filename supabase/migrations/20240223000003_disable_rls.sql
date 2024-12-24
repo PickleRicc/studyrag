@@ -1,0 +1,4 @@
+-- Disable RLS on all tables
+ALTER TABLE chat_sessions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE session_messages DISABLE ROW LEVEL SECURITY;
+ALTER TABLE session_documents DISABLE ROW LEVEL SECURITY;

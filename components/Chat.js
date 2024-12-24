@@ -1,15 +1,21 @@
-'use client';
-
 import { useState, useRef, useEffect } from 'react';
 import { useActiveFiles } from '../hooks/useActiveFiles';
+import { useChatSessions } from '../hooks/useChatSessions';
 
 export default function Chat() {
-    const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
     const messagesEndRef = useRef(null);
     const { activeFiles } = useActiveFiles();
+    const {
+        activeSession,
+        messages,
+        createSession,
+        addMessage,
+        endSession,
+        setActiveSession
+    } = useChatSessions();
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -29,7 +35,27 @@ export default function Chat() {
         setIsLoading(true);
 
         try {
-            setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+            let currentSession = activeSession;
+            // Create a session if none exists
+            if (!currentSession) {
+                const title = userMessage.split(' ').slice(0, 5).join(' ') + '...';
+                currentSession = await createSession(title);
+                if (!currentSession) {
+                    setError('Failed to create chat session');
+                    setIsLoading(false);
+                    return;
+                }
+                // Wait for session to be fully created
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+
+            // Add user message using current session ID
+            const userMessageResult = await addMessage(userMessage, 'user', null, currentSession.id);
+            if (!userMessageResult) {
+                setError('Failed to save message');
+                setIsLoading(false);
+                return;
+            }
 
             const response = await fetch('/api/chat', {
                 method: 'POST',
@@ -51,15 +77,18 @@ export default function Chat() {
                 throw new Error(data.error);
             }
 
-            setMessages(prev => [...prev, {
-                role: 'assistant',
-                content: data.message,
-                sources: data.sources
-            }]);
+            // Add AI response
+            console.log('Adding AI response to session:', currentSession.id);
+            const aiMessageResult = await addMessage(data.message, 'assistant', data.sources, currentSession.id);
+            if (!aiMessageResult) {
+                throw new Error('Failed to save AI response');
+            }
+            console.log('AI response added successfully:', aiMessageResult);
 
         } catch (err) {
             console.error('Chat error:', err);
-            setError(err.message);
+            console.error('Error details:', err.stack);
+            setError(err.message || 'Failed to get response');
         } finally {
             setIsLoading(false);
         }
@@ -67,6 +96,25 @@ export default function Chat() {
 
     return (
         <div className="flex flex-col h-[calc(100vh-16rem)] bg-white rounded-xl shadow-sm border border-gray-200">
+            {/* End Chat Button */}
+            {activeSession && (
+                <div className="px-4 py-2 border-b">
+                    <button
+                        onClick={async () => {
+                            if (window.confirm('Are you sure you want to end this chat session? It will be saved to your chat history.')) {
+                                await endSession();
+                            }
+                        }}
+                        className="px-4 py-2 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition-colors duration-150 ease-in-out flex items-center"
+                    >
+                        <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        End Chat
+                    </button>
+                </div>
+            )}
+
             {/* Messages Container */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {messages.length === 0 ? (
@@ -82,39 +130,37 @@ export default function Chat() {
                     messages.map((message, index) => (
                         <div
                             key={index}
-                            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                            className={`flex ${
+                                message.role === 'assistant' ? 'bg-gray-100' : 'bg-white'
+                            } p-4 border-b`}
                         >
-                            <div className={`
-                                max-w-[80%] sm:max-w-[70%] rounded-2xl px-4 py-2
-                                ${message.role === 'user' 
-                                    ? 'bg-blue-600 text-white' 
-                                    : 'bg-gray-100 text-gray-800'}
-                            `}>
-                                <div className="flex items-start space-x-2">
-                                    {message.role === 'assistant' && (
-                                        <div className="flex-shrink-0 w-6 h-6">
-                                            <svg className="w-full h-full text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                                            </svg>
-                                        </div>
-                                    )}
-                                    <div className="flex-1 space-y-2">
-                                        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                                        {message.sources && message.sources.length > 0 && (
-                                            <div className={`mt-2 text-xs ${message.role === 'user' ? 'text-blue-100' : 'text-gray-500'}`}>
-                                                <p className="font-medium">Sources:</p>
-                                                <ul className="list-disc list-inside mt-1 space-y-1">
-                                                    {message.sources.map((source, idx) => (
-                                                        <li key={idx} className="truncate">
-                                                            {source.fileName} 
-                                                            {source.score && ` (${(source.score * 100).toFixed(1)}% match)`}
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            </div>
-                                        )}
-                                    </div>
+                            <div className="flex-1">
+                                <div className="font-medium mb-1">
+                                    {message.role === 'assistant' ? 'AI' : 'You'}
                                 </div>
+                                <div className="text-gray-700 whitespace-pre-wrap">
+                                    {message.content}
+                                </div>
+                                {message.sources && (
+                                    <div className="mt-2">
+                                        <div className="text-sm text-gray-500 mb-1">Sources:</div>
+                                        {Array.isArray(message.sources) ? (
+                                            message.sources.map((source, idx) => (
+                                                <div key={idx} className="text-sm text-blue-600">
+                                                    {source.fileName || source}
+                                                    {source.score && ` (${(source.score * 100).toFixed(1)}% match)`}
+                                                </div>
+                                            ))
+                                        ) : typeof message.sources === 'string' ? (
+                                            JSON.parse(message.sources).map((source, idx) => (
+                                                <div key={idx} className="text-sm text-blue-600">
+                                                    {typeof source === 'object' ? source.fileName : source}
+                                                    {source.score && ` (${(source.score * 100).toFixed(1)}% match)`}
+                                                </div>
+                                            ))
+                                        ) : null}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     ))
@@ -141,12 +187,10 @@ export default function Chat() {
                     <button
                         type="submit"
                         disabled={isLoading || !input.trim()}
-                        className={`
-                            px-4 py-2 rounded-lg flex items-center justify-center min-w-[5rem]
+                        className={`px-4 py-2 rounded-lg flex items-center justify-center min-w-[5rem]
                             ${isLoading || !input.trim()
                                 ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                : 'bg-blue-600 text-white hover:bg-blue-700'}
-                        `}
+                                : 'bg-blue-600 text-white hover:bg-blue-700'}`}
                     >
                         {isLoading ? (
                             <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
