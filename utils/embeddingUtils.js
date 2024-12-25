@@ -21,6 +21,17 @@ export async function generateEmbedding(text) {
         return response.data[0].embedding;
     } catch (error) {
         console.error('Error generating embedding:', error);
-        throw new Error('Failed to generate embedding');
+        
+        // Handle specific OpenAI API errors
+        if (error?.error?.type === 'insufficient_quota') {
+            throw new Error('OpenAI API quota exceeded. Please check your API usage limits and billing settings.');
+        } else if (error?.status === 401) {
+            throw new Error('Invalid OpenAI API key. Please check your API key configuration.');
+        } else if (error?.status === 429) {
+            throw new Error('Too many requests. Please try again in a few moments.');
+        }
+        
+        // Generic error fallback
+        throw new Error('Failed to generate embedding: ' + (error.message || 'Unknown error'));
     }
 }

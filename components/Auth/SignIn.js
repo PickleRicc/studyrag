@@ -1,121 +1,97 @@
 'use client';
-
 import { useState } from 'react';
-import Link from 'next/link';
+import { useAuth } from '../../context/AuthContext';
+import { useRouter } from 'next/navigation';
 
 export default function SignIn() {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState(null);
+    const router = useRouter();
+    const { signIn } = useAuth();
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [formData, setFormData] = useState({
+        email: '',
+        password: ''
+    });
+
+    const handleChange = (e) => {
+        setFormData(prev => ({
+            ...prev,
+            [e.target.name]: e.target.value
+        }));
+        setError('');
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setIsLoading(true);
-        setError(null);
-        // Auth logic will be implemented later
-        setIsLoading(false);
+        setError('');
+        setLoading(true);
+
+        try {
+            await signIn(formData.email, formData.password);
+            router.push('/'); // Redirect to home page after successful sign in
+        } catch (err) {
+            setError(err.message || 'Failed to sign in');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-md w-full space-y-8">
-                <div>
-                    <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-                        Sign in to StudyRag
-                    </h2>
-                    <p className="mt-2 text-center text-sm text-gray-600">
-                        Or{' '}
-                        <Link href="/signup" className="font-medium text-indigo-600 hover:text-indigo-500">
-                            create a new account
-                        </Link>
-                    </p>
+        <div className="min-h-[400px] w-full max-w-md p-8 rounded-lg bg-[var(--card-dark)] border border-[#3a3a3a] glass-effect">
+            <h2 className="text-2xl font-bold mb-6 text-center text-[var(--text-primary)]">Sign In</h2>
+            
+            {error && (
+                <div className="mb-4 p-3 rounded bg-red-500 bg-opacity-10 border border-red-500 text-red-500">
+                    {error}
                 </div>
-                <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-                    <div className="rounded-md shadow-sm -space-y-px">
-                        <div>
-                            <label htmlFor="email-address" className="sr-only">
-                                Email address
-                            </label>
-                            <input
-                                id="email-address"
-                                name="email"
-                                type="email"
-                                autoComplete="email"
-                                required
-                                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                                placeholder="Email address"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                            />
-                        </div>
-                        <div>
-                            <label htmlFor="password" className="sr-only">
-                                Password
-                            </label>
-                            <input
-                                id="password"
-                                name="password"
-                                type="password"
-                                autoComplete="current-password"
-                                required
-                                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                                placeholder="Password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                            />
-                        </div>
-                    </div>
+            )}
 
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                            <input
-                                id="remember-me"
-                                name="remember-me"
-                                type="checkbox"
-                                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                            />
-                            <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">
-                                Remember me
-                            </label>
-                        </div>
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                    <label htmlFor="email" className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+                        Email
+                    </label>
+                    <input
+                        type="email"
+                        id="email"
+                        name="email"
+                        value={formData.email}
+                        onChange={handleChange}
+                        className="w-full p-3 rounded-lg bg-[var(--background-dark)] text-[var(--text-primary)]
+                                 border border-[#3a3a3a] focus:border-[var(--accent-green)] focus:ring-1 
+                                 focus:ring-[var(--accent-green)] transition-colors duration-200 glow-focus"
+                        required
+                    />
+                </div>
 
-                        <div className="text-sm">
-                            <Link href="/reset-password" className="font-medium text-indigo-600 hover:text-indigo-500">
-                                Forgot your password?
-                            </Link>
-                        </div>
-                    </div>
+                <div>
+                    <label htmlFor="password" className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+                        Password
+                    </label>
+                    <input
+                        type="password"
+                        id="password"
+                        name="password"
+                        value={formData.password}
+                        onChange={handleChange}
+                        className="w-full p-3 rounded-lg bg-[var(--background-dark)] text-[var(--text-primary)]
+                                 border border-[#3a3a3a] focus:border-[var(--accent-green)] focus:ring-1 
+                                 focus:ring-[var(--accent-green)] transition-colors duration-200 glow-focus"
+                        required
+                    />
+                </div>
 
-                    {error && (
-                        <div className="rounded-md bg-red-50 p-4">
-                            <div className="flex">
-                                <div className="ml-3">
-                                    <h3 className="text-sm font-medium text-red-800">
-                                        {error}
-                                    </h3>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    <div>
-                        <button
-                            type="submit"
-                            disabled={isLoading}
-                            className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                        >
-                            {isLoading ? (
-                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                            ) : null}
-                            Sign in
-                        </button>
-                    </div>
-                </form>
-            </div>
+                <button
+                    type="submit"
+                    disabled={loading}
+                    className={`w-full p-3 rounded-lg font-medium transition-colors duration-200
+                              ${loading 
+                                ? 'bg-[var(--accent-green-dim)] text-[var(--text-secondary)]' 
+                                : 'bg-[var(--accent-green)] hover:bg-[var(--accent-green-bright)] text-white'}`}
+                >
+                    {loading ? 'Signing In...' : 'Sign In'}
+                </button>
+            </form>
         </div>
     );
 }

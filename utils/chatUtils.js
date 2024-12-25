@@ -144,7 +144,10 @@ async function generateChatResponse(query, messages = [], activeFiles = []) {
         // Return response with sources from raw results
         return {
             content: response.content,
-            sources: raw.map(({ fileName, score }) => ({ fileName, score }))
+            sources: raw ? raw.slice(0, 5).map(result => ({
+                fileName: result.fileName,
+                score: parseFloat(result.score)
+            })) : []
         };
     } catch (error) {
         console.error('Error generating chat response:', error);

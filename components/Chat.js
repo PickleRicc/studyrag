@@ -95,17 +95,17 @@ export default function Chat() {
     };
 
     return (
-        <div className="flex flex-col h-[calc(100vh-16rem)] bg-white rounded-xl shadow-sm border border-gray-200">
+        <div className="flex flex-col h-[calc(100vh-16rem)] bg-[var(--background-dark)] rounded-xl border border-[#3a3a3a]">
             {/* End Chat Button */}
             {activeSession && (
-                <div className="px-4 py-2 border-b">
+                <div className="px-4 py-2 border-b border-[#3a3a3a]">
                     <button
                         onClick={async () => {
                             if (window.confirm('Are you sure you want to end this chat session? It will be saved to your chat history.')) {
                                 await endSession();
                             }
                         }}
-                        className="px-4 py-2 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition-colors duration-150 ease-in-out flex items-center"
+                        className="px-4 py-2 text-sm text-red-500 hover:bg-red-500/10 rounded-md transition-all duration-200 flex items-center"
                     >
                         <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -118,90 +118,146 @@ export default function Chat() {
             {/* Messages Container */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {messages.length === 0 ? (
-                    <div className="flex items-center justify-center h-full text-gray-500">
-                        <div className="text-center">
-                            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                            </svg>
-                            <p className="mt-2 text-sm">Start a conversation by asking a question about your documents</p>
+                    <div className="h-full flex items-center justify-center">
+                        <div className="text-center space-y-4">
+                            <div className="w-16 h-16 mx-auto">
+                                <svg className="w-full h-full text-[var(--text-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                                          d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                </svg>
+                            </div>
+                            <p className="text-[var(--text-secondary)]">
+                                Start a conversation by asking a question about your documents
+                            </p>
                         </div>
                     </div>
                 ) : (
                     messages.map((message, index) => (
-                        <div
-                            key={index}
-                            className={`flex ${
-                                message.role === 'assistant' ? 'bg-gray-100' : 'bg-white'
-                            } p-4 border-b`}
-                        >
-                            <div className="flex-1">
-                                <div className="font-medium mb-1">
-                                    {message.role === 'assistant' ? 'AI' : 'You'}
-                                </div>
-                                <div className="text-gray-700 whitespace-pre-wrap">
-                                    {message.content}
-                                </div>
-                                {message.sources && (
-                                    <div className="mt-2">
-                                        <div className="text-sm text-gray-500 mb-1">Sources:</div>
-                                        {Array.isArray(message.sources) ? (
-                                            message.sources.map((source, idx) => (
-                                                <div key={idx} className="text-sm text-blue-600">
-                                                    {source.fileName || source}
-                                                    {source.score && ` (${(source.score * 100).toFixed(1)}% match)`}
-                                                </div>
-                                            ))
-                                        ) : typeof message.sources === 'string' ? (
-                                            JSON.parse(message.sources).map((source, idx) => (
-                                                <div key={idx} className="text-sm text-blue-600">
-                                                    {typeof source === 'object' ? source.fileName : source}
-                                                    {source.score && ` (${(source.score * 100).toFixed(1)}% match)`}
-                                                </div>
-                                            ))
-                                        ) : null}
+                        <div key={index} className={`message-fade-in flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} mb-4`}>
+                            {message.role === 'assistant' && (
+                                <div className="flex-shrink-0 mr-3">
+                                    <div className="w-8 h-8 rounded-full bg-[var(--accent-green-dim)] flex items-center justify-center">
+                                        <svg className="w-5 h-5 text-[var(--accent-green)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                        </svg>
                                     </div>
-                                )}
+                                </div>
+                            )}
+                            <div className={`
+                                max-w-2xl p-4 rounded-lg relative
+                                ${message.role === 'user' 
+                                    ? 'message-user mr-3' 
+                                    : 'message-assistant'}
+                            `}>
+                                <div className="space-y-2">
+                                    <p className="whitespace-pre-wrap">{message.content}</p>
+                                    {message.sources && (
+                                        <div className="mt-2 space-y-2">
+                                            <div className="text-sm font-medium text-[var(--text-secondary)]">Sources:</div>
+                                            <div className="space-y-1">
+                                                {(() => {
+                                                    let sourcesArray;
+                                                    if (typeof message.sources === 'string') {
+                                                        try {
+                                                            sourcesArray = JSON.parse(message.sources);
+                                                        } catch (e) {
+                                                            console.error('Error parsing sources:', e);
+                                                            return null;
+                                                        }
+                                                    } else if (Array.isArray(message.sources)) {
+                                                        sourcesArray = message.sources;
+                                                    } else {
+                                                        return null;
+                                                    }
+
+                                                    return sourcesArray.map((source, idx) => (
+                                                        <div key={idx} className="flex justify-between items-center text-xs">
+                                                            <span className="text-[var(--text-secondary)]">{source.fileName}</span>
+                                                            <span className="text-[var(--accent-green)] bg-[var(--accent-green-dim)] px-2 py-0.5 rounded">
+                                                                {Math.round(Number(source.score) * 100)}% relevant
+                                                            </span>
+                                                        </div>
+                                                    ));
+                                                })()}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
+                            {message.role === 'user' && (
+                                <div className="flex-shrink-0 ml-3">
+                                    <div className="w-8 h-8 rounded-full bg-[var(--accent-green-dim)] flex items-center justify-center">
+                                        <svg className="w-5 h-5 text-[var(--accent-green)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                        </svg>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     ))
+                )}
+                {isLoading && (
+                    <div className="message-fade-in flex justify-start mb-4">
+                        <div className="flex-shrink-0 mr-3">
+                            <div className="w-8 h-8 rounded-full bg-[var(--accent-green-dim)] flex items-center justify-center">
+                                <svg className="w-5 h-5 text-[var(--accent-green)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div className="typing-indicator">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </div>
+                    </div>
                 )}
                 <div ref={messagesEndRef} />
             </div>
 
-            {/* Input Container */}
-            <div className="border-t border-gray-200 p-4">
-                <form onSubmit={handleSubmit} className="flex space-x-4">
-                    <div className="flex-1 relative">
-                        <input
-                            type="text"
-                            value={input}
-                            onChange={(e) => setInput(e.target.value)}
-                            placeholder="Ask a question about your documents..."
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            disabled={isLoading}
-                        />
-                        {error && (
-                            <p className="absolute -top-6 left-0 text-sm text-red-500">{error}</p>
-                        )}
-                    </div>
+            {/* Input Area */}
+            <div className="p-4 border-t border-[#3a3a3a]">
+                <form onSubmit={handleSubmit} className="relative">
+                    <input
+                        type="text"
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        placeholder={activeFiles.length > 0 
+                            ? "Ask a question about your documents..." 
+                            : "Upload a document first to ask questions"}
+                        disabled={isLoading || activeFiles.length === 0}
+                        className="w-full p-4 pr-12 rounded-lg bg-[var(--card-dark)] text-[var(--text-primary)] 
+                                 placeholder-[var(--text-secondary)] border border-[#3a3a3a] 
+                                 focus:border-[var(--accent-green)] focus:ring-1 focus:ring-[var(--accent-green)]
+                                 transition-colors duration-200"
+                    />
                     <button
                         type="submit"
-                        disabled={isLoading || !input.trim()}
-                        className={`px-4 py-2 rounded-lg flex items-center justify-center min-w-[5rem]
-                            ${isLoading || !input.trim()
-                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                        disabled={!input.trim() || isLoading || activeFiles.length === 0}
+                        className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg
+                                  ${(!input.trim() || isLoading || activeFiles.length === 0)
+                                    ? 'text-[var(--text-secondary)]'
+                                    : 'text-[var(--accent-green)] hover:bg-[var(--accent-green)] hover:bg-opacity-10'
+                                  } transition-all duration-200`}
                     >
                         {isLoading ? (
-                            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
+                            <div className="flex space-x-1">
+                                <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                                <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                                <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce"></div>
+                            </div>
                         ) : (
-                            'Send'
+                            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                            </svg>
                         )}
                     </button>
                 </form>
+                {error && (
+                    <div className="mt-2 p-2 text-red-500 text-sm bg-red-500/10 rounded">
+                        {error}
+                    </div>
+                )}
             </div>
         </div>
     );

@@ -1,100 +1,60 @@
-import { useState } from 'react'
-import { supabase } from '../../utils/supabase'
-import { useRouter } from 'next/router'
-import Link from 'next/link'
+import SignUp from '../../components/Auth/SignUp';
+import Link from 'next/link';
 
-export default function SignUp() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const router = useRouter()
+export default function SignUpPage() {
+    return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-[var(--background-dark)] p-4">
+            <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+                    {/* Left side - Welcome content */}
+                    <div className="space-y-6">
+                        <div className="text-center lg:text-left space-y-4">
+                            <h1 className="text-4xl lg:text-5xl font-bold text-[var(--text-primary)]">
+                                Welcome to LabRag
+                            </h1>
+                            <div className="space-y-3">
+                                <p className="text-lg lg:text-xl text-[var(--text-primary)]">
+                                    Your AI-powered research companion
+                                </p>
+                                <p className="text-[var(--text-secondary)] lg:text-lg">
+                                    Upload your pdf files or audio files, then chat with an AI that understands your content.
+                                    Get instant answers, explanations, and insights from your documents or audio files.
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
+                            <div className="p-4 rounded-lg border border-[#3a3a3a] bg-[var(--card-dark)]">
+                                <div className="text-[var(--accent-green)] mb-2 text-lg">📚 Smart Research</div>
+                                <p className="text-[var(--text-secondary)]">Upload PDFs and get AI-powered insights</p>
+                            </div>
+                            <div className="p-4 rounded-lg border border-[#3a3a3a] bg-[var(--card-dark)]">
+                                <div className="text-[var(--accent-green)] mb-2 text-lg">💬 Natural Chat</div>
+                                <p className="text-[var(--text-secondary)]">Ask questions in plain language</p>
+                            </div>
+                            <div className="p-4 rounded-lg border border-[#3a3a3a] bg-[var(--card-dark)]">
+                                <div className="text-[var(--accent-green)] mb-2 text-lg">🎯 Precise Answers</div>
+                                <p className="text-[var(--text-secondary)]">Get responses based on your content</p>
+                            </div>
+                            <div className="p-4 rounded-lg border border-[#3a3a3a] bg-[var(--card-dark)]">
+                                <div className="text-[var(--accent-green)] mb-2 text-lg">⚡ Instant Help</div>
+                                <p className="text-[var(--text-secondary)]">Research smarter, not harder</p>
+                            </div>
+                        </div>
+                    </div>
 
-  const handleSignUp = async (e) => {
-    e.preventDefault()
-    try {
-      setLoading(true)
-      setError(null)
-      const { error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-      })
-      if (signUpError) throw signUpError
-
-      // After successful signup, sign in automatically
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-      if (signInError) throw signInError
-
-      // Redirect to main app screen after successful sign-up and sign-in
-      router.push('/')
-    } catch (error) {
-      setError(error.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Create your account
-          </h2>
+                    {/* Right side - Sign up form */}
+                    <div className="lg:pl-8">
+                        <SignUp />
+                        <p className="mt-4 text-center text-sm text-[var(--text-secondary)]">
+                            Already have an account?{' '}
+                            <Link href="/auth/signin" className="text-[var(--accent-green)] hover:text-[var(--accent-green-bright)]">
+                                Sign in
+                            </Link>
+                        </p>
+                    </div>
+                </div>
+            </div>
         </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSignUp}>
-          {error && (
-            <div className="bg-red-50 p-4 rounded-md">
-              <p className="text-sm text-red-700">{error}</p>
-            </div>
-          )}
-          <div className="rounded-md shadow-sm -space-y-px">
-            <div>
-              <input
-                id="email-address"
-                name="email"
-                type="email"
-                required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Email address"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            <div>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-            >
-              {loading ? 'Creating account...' : 'Sign up'}
-            </button>
-          </div>
-          
-          <div className="text-sm text-center">
-            <Link href="/auth/signin" className="font-medium text-indigo-600 hover:text-indigo-500">
-              Already have an account? Sign in
-            </Link>
-          </div>
-        </form>
-      </div>
-    </div>
-  )
+    );
 }

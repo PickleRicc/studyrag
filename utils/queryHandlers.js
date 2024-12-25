@@ -3,7 +3,7 @@ import { generateEmbedding } from './embeddingUtils';
 import { ChatOpenAI } from "@langchain/openai";
 
 const llm = new ChatOpenAI({
-    model: "gpt-4",
+    model: "gpt-4-turbo-preview",
     temperature: 0.7
 });
 
@@ -34,13 +34,22 @@ async function handleSpecificQuery(query, searchResults) {
 
     const response = await llm.invoke(prompt);
 
+    // Process and deduplicate sources
+    const uniqueSources = Array.from(new Set(
+        searchResults.results.map(r => r.fileName)
+    )).map(fileName => {
+        const relevantResults = searchResults.results.filter(r => r.fileName === fileName);
+        const highestScore = Math.max(...relevantResults.map(r => r.score));
+        return {
+            fileName,
+            relevance: `${Math.round(highestScore * 100)}%`
+        };
+    });
+
     return {
         answer: response.content,
         type: 'specific',
-        sources: searchResults.results.map(r => ({
-            fileName: r.fileName,
-            score: r.score
-        }))
+        sources: uniqueSources
     };
 }
 
@@ -49,23 +58,27 @@ async function handleVagueQuery(query, searchResults) {
     const fileOverviews = {};
     searchResults.results.forEach(result => {
         if (!fileOverviews[result.fileName]) {
-            fileOverviews[result.fileName] = [];
+            fileOverviews[result.fileName] = {
+                texts: [],
+                score: 0
+            };
         }
-        fileOverviews[result.fileName].push(result.text);
+        fileOverviews[result.fileName].texts.push(result.text);
+        fileOverviews[result.fileName].score = Math.max(fileOverviews[result.fileName].score, result.score);
     });
 
     // Ensure we have at least 2 entries per file
     Object.keys(fileOverviews).forEach(fileName => {
-        const texts = fileOverviews[fileName];
+        const texts = fileOverviews[fileName].texts;
         if (texts.length > 2) {
-            fileOverviews[fileName] = texts.slice(0, 2);
+            fileOverviews[fileName].texts = texts.slice(0, 2);
         }
     });
 
     const prompt = `You are analyzing multiple documents. Here are relevant excerpts:
 
-    ${Object.entries(fileOverviews).map(([filename, texts]) => 
-        `Document: ${filename}\nContent:\n${texts.join('\n')}`
+    ${Object.entries(fileOverviews).map(([filename, data]) => 
+        `Document: ${filename}\nContent:\n${data.texts.join('\n')}`
     ).join('\n\n')}
 
     Question: ${query}
@@ -82,9 +95,10 @@ async function handleVagueQuery(query, searchResults) {
     return {
         answer: response.content,
         type: 'vague',
-        sources: Object.keys(fileOverviews).map(fileName => ({
+        sources: Object.entries(fileOverviews).map(([fileName, data]) => ({
             fileName,
-            count: fileOverviews[fileName].length
+            relevance: `${Math.round(data.score * 100)}%`,
+            excerpts: data.texts.length
         }))
     };
 }
