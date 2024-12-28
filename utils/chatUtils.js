@@ -4,7 +4,9 @@ import { searchDocuments } from './queryUtils';
 
 const llm = new ChatOpenAI({
     model: "gpt-4",
-    temperature: 0
+    temperature: 0,
+    maxTokens: 1000, // Limit response length
+    timeout: 65000, // 65 second timeout for OpenAI (slightly less than our total to allow for error handling)
 });
 
 /**
@@ -110,8 +112,14 @@ async function generateChatResponse(query, messages = [], activeFiles = []) {
     try {
         console.log('\n=== Generating Chat Response ===');
         
-        // Get document context
-        const { context, error, raw } = await getDocumentContext(query, activeFiles);
+        // Set a timeout for the entire operation (70 seconds)
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Operation timed out')), 70000)
+        );
+        
+        // Get document context with timeout
+        const contextPromise = getDocumentContext(query, activeFiles);
+        const { context, error, raw } = await Promise.race([contextPromise, timeoutPromise]);
         
         if (error) {
             return {
@@ -137,8 +145,10 @@ async function generateChatResponse(query, messages = [], activeFiles = []) {
             new HumanMessage(query)
         ];
 
-        // Get LLM response
-        const response = await llm.invoke(llmMessages);
+        // Get LLM response with timeout
+        const responsePromise = llm.invoke(llmMessages);
+        const response = await Promise.race([responsePromise, timeoutPromise]);
+        
         console.log('Generated response:', response.content);
 
         // Return response with sources from raw results
@@ -151,6 +161,12 @@ async function generateChatResponse(query, messages = [], activeFiles = []) {
         };
     } catch (error) {
         console.error('Error generating chat response:', error);
+        if (error.message === 'Operation timed out') {
+            return {
+                content: "I apologize, but the request took too long to process. Please try again with a shorter question or fewer documents.",
+                sources: []
+            };
+        }
         throw error;
     }
 }

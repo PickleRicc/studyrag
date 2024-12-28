@@ -6,6 +6,18 @@ const nextConfig = {
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production',
   },
+  serverRuntimeConfig: {
+    api: {
+      bodyParser: {
+        sizeLimit: '10mb',
+      },
+      responseLimit: false,
+    },
+  },
+  functions: {
+    runtime: 'nodejs18.x',
+    maxDuration: 70,
+  },
 }
 
 export default nextConfig;
