@@ -40,6 +40,15 @@ function cleanMetadata(metadata) {
   return cleaned;
 }
 
+function sanitizeId(str) {
+  // Replace non-ASCII characters and spaces with underscores
+  return str.replace(/[^\x00-\x7F]/g, '')  // Remove non-ASCII
+           .replace(/[^a-zA-Z0-9-_]/g, '_') // Replace special chars with underscore
+           .replace(/_+/g, '_')             // Replace multiple underscores with single
+           .replace(/^_|_$/g, '')           // Remove leading/trailing underscores
+           .toLowerCase();                   // Convert to lowercase
+}
+
 /**
  * Upsert vectors to Pinecone index
  * @param {Array} chunks - Array of chunks with text and embeddings
@@ -49,7 +58,7 @@ async function upsertVectors(chunks, fileName) {
   try {
     // Prepare vectors with proper structure
     const vectors = chunks.map((chunk, i) => ({
-      id: `${fileName}_${i}`, // Create unique ID using filename and chunk index
+      id: `${sanitizeId(fileName)}_${i}`, // Create unique ID using filename and chunk index
       values: chunk.embedding,
       metadata: cleanMetadata({
         text: chunk.text,

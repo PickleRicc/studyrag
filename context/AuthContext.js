@@ -1,9 +1,16 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect } from 'react';
-import { supabase } from '../utils/supabase';
+import { createClient } from '@supabase/supabase-js';
+import { handleAuth } from '../utils/supabase';
 
 const AuthContext = createContext({});
+
+// Create a client-side only instance
+const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
 export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
@@ -25,41 +32,48 @@ export function AuthProvider({ children }) {
     }, []);
 
     const signUp = async (email, password, name) => {
-        const { data, error } = await supabase.auth.signUp({
-            email,
-            password,
-            options: {
-                data: {
-                    name: name
-                }
-            }
-        });
-
-        if (error) throw error;
-        return data;
+        try {
+            const { data, error } = await handleAuth(email, password, 'signup');
+            if (error) throw error;
+            return data;
+        } catch (error) {
+            throw error;
+        }
     };
 
     const signIn = async (email, password) => {
-        const { data, error } = await supabase.auth.signInWithPassword({
-            email,
-            password
-        });
-        if (error) throw error;
-        return data;
+        try {
+            const { data, error } = await handleAuth(email, password, 'signin');
+            if (error) throw error;
+            return data;
+        } catch (error) {
+            throw error;
+        }
     };
 
     const signOut = async () => {
-        const { error } = await supabase.auth.signOut();
-        if (error) throw error;
+        try {
+            const { error } = await supabase.auth.signOut();
+            if (error) throw error;
+            setUser(null);
+        } catch (error) {
+            throw error;
+        }
     };
 
     return (
-        <AuthContext.Provider value={{ user, signUp, signIn, signOut }}>
-            {!loading && children}
+        <AuthContext.Provider value={{
+            user,
+            loading,
+            signUp,
+            signIn,
+            signOut,
+        }}>
+            {children}
         </AuthContext.Provider>
     );
 }
 
-export const useAuth = () => {
+export function useAuth() {
     return useContext(AuthContext);
-};
+}

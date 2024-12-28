@@ -1,17 +1,23 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { useRouter } from 'next/navigation';
+import { useRouter } from 'next/router';
 
 export default function SignIn() {
     const router = useRouter();
-    const { signIn } = useAuth();
+    const { signIn, user } = useAuth();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [formData, setFormData] = useState({
         email: '',
         password: ''
     });
+
+    useEffect(() => {
+        if (user) {
+            router.push('/');
+        }
+    }, [user, router]);
 
     const handleChange = (e) => {
         setFormData(prev => ({
@@ -27,8 +33,10 @@ export default function SignIn() {
         setLoading(true);
 
         try {
-            await signIn(formData.email, formData.password);
-            router.push('/'); // Redirect to home page after successful sign in
+            const result = await signIn(formData.email, formData.password);
+            if (result?.session) {
+                router.push('/');
+            }
         } catch (err) {
             setError(err.message || 'Failed to sign in');
         } finally {

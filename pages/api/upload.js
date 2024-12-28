@@ -1,24 +1,16 @@
 import formidable from 'formidable';
-import fs from 'fs';
-import path from 'path';
+import { put } from '@vercel/blob';
 import { extractTextFromPDF } from '../../utils/pdfUtils';
 import { transcribeAudio } from '../../utils/audioUtils';
 import { splitTextIntoChunks } from '../../utils/textProcessing';
 import { generateEmbedding } from '../../utils/embeddingUtils';
-import { upsertVectors, getIndexStats } from '../../utils/pineconeUtils';
-import { addFileToActive, getActiveFiles, clearActiveFiles } from '../../utils/fileManagement';
-import { supabase } from '../../utils/supabase';
+import { upsertVectors } from '../../utils/pineconeUtils';
+import { addFileToActive } from '../../utils/fileManagement';
+import { supabaseServer } from '../../utils/supabase';
 
 // Validate environment variables
-if (!process.env.OPENAI_API_KEY) {
-  throw new Error('Missing OPENAI_API_KEY environment variable. Please check your .env file.');
-}
-
-const uploadDir = path.join(process.cwd(), 'tmp/uploads');
-
-// Ensure upload directory exists
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+if (!process.env.BLOB_READ_WRITE_TOKEN) {
+  throw new Error('Missing BLOB_READ_WRITE_TOKEN environment variable');
 }
 
 export const config = {
@@ -33,8 +25,9 @@ export default async function handler(req, res) {
   }
 
   try {
+    console.log('BLOB token available:', !!process.env.BLOB_READ_WRITE_TOKEN);
+    
     const form = formidable({
-      uploadDir,
       keepExtensions: true,
       maxFileSize: 25 * 1024 * 1024, // 25MB limit
     });
@@ -46,150 +39,67 @@ export default async function handler(req, res) {
       });
     });
 
-    const file = files.file[0];
-    const fileType = fields.fileType?.[0] || file.mimetype;
-    const isFirstFile = fields.isFirstFile?.[0] === 'true';
-    const userId = fields.userId?.[0];
-
-    if (!userId) {
-      fs.unlinkSync(file.filepath);
-      return res.status(400).json({ error: 'User ID is required' });
+    const file = Array.isArray(files.file) ? files.file[0] : files.file;
+    const fileType = file.mimetype;
+    
+    let text;
+    if (fileType.includes('pdf')) {
+      text = await extractTextFromPDF(file.filepath);
+    } else if (fileType.includes('audio')) {
+      text = await transcribeAudio(file.filepath);
+    } else {
+      throw new Error('Unsupported file type');
     }
 
-    // Validate file type
-    if (!fileType.includes('pdf') && !fileType.includes('audio')) {
-      fs.unlinkSync(file.filepath);
-      return res.status(400).json({ error: 'Invalid file type' });
-    }
+    // Upload to Vercel Blob
+    const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
+    console.log('Using blob token:', blobToken ? 'Token exists' : 'Token missing');
+    
+    const blob = await put(file.originalFilename, file, {
+      access: 'public',
+      token: blobToken,
+    });
 
-    // Clear active files if this is the first file in a new session
-    if (isFirstFile) {
-      clearActiveFiles();
-      console.log('Cleared active files for new session');
-    }
+    // Process text and generate embeddings
+    const chunks = splitTextIntoChunks(text);
+    const embeddings = await Promise.all(
+      chunks.map(chunk => generateEmbedding(chunk))
+    );
 
-    // Create document record in Supabase
-    const { data: document, error: documentError } = await supabase
+    // Store vectors in Pinecone
+    await upsertVectors(chunks, embeddings, file.originalFilename);
+
+    // Get user from session
+    const { data: { session }, error: sessionError } = await supabaseServer.auth.getSession();
+    if (sessionError) throw sessionError;
+
+    // Store file metadata in Supabase
+    const { data: document, error } = await supabaseServer
       .from('documents')
-      .insert({
-        user_id: userId,
-        file_name: file.originalFilename,
-        file_path: file.filepath,
-        file_size: file.size,
-        embedding_status: 'processing'
-      })
+      .insert([
+        {
+          name: file.originalFilename,
+          url: blob.url,
+          size: file.size,
+          type: fileType,
+          user_id: session.user.id
+        }
+      ])
       .select()
       .single();
 
-    if (documentError) {
-      console.error('Error creating document record:', documentError);
-      fs.unlinkSync(file.filepath);
-      return res.status(500).json({ error: 'Failed to create document record' });
-    }
+    if (error) throw error;
 
-    let extractedData;
-    try {
-      if (fileType.includes('pdf')) {
-        // Process PDF
-        extractedData = await extractTextFromPDF(file.filepath);
-      } else {
-        // Process Audio
-        extractedData = await transcribeAudio(file.filepath);
-      }
+    // Add to active files
+    addFileToActive(file.originalFilename);
 
-      // Split the text into chunks using LangChain
-      const chunks = await splitTextIntoChunks(extractedData.text, {
-        filename: file.originalFilename,
-        fileType: fileType.includes('pdf') ? 'pdf' : 'audio',
-        ...(fileType.includes('pdf') ? {
-          pageCount: extractedData.numPages,
-          documentInfo: extractedData.info
-        } : {
-          duration: extractedData.duration,
-          transcriptionInfo: extractedData.info
-        })
-      });
-
-      // Generate embeddings for each chunk
-      const chunksWithEmbeddings = await Promise.all(
-        chunks.map(async (chunk) => {
-          try {
-            const embedding = await generateEmbedding(chunk.pageContent);
-            return {
-              text: chunk.pageContent,
-              metadata: chunk.metadata,
-              embedding
-            };
-          } catch (error) {
-            console.error('Error generating embedding for chunk:', error);
-            return {
-              text: chunk.pageContent,
-              metadata: chunk.metadata,
-              embedding: null
-            };
-          }
-        })
-      );
-
-      // Store embeddings in Pinecone
-      try {
-        const result = await upsertVectors(chunksWithEmbeddings, file.originalFilename);
-        console.log('Pinecone upsert result:', result);
-        
-        // Update document status in Supabase
-        const { error: updateError } = await supabase
-          .from('documents')
-          .update({ 
-            embedding_status: 'completed',
-            pinecone_namespace: file.originalFilename
-          })
-          .eq('id', document.id);
-
-        if (updateError) {
-          console.error('Error updating document status:', updateError);
-        }
-
-        // Get updated index stats
-        const stats = await getIndexStats();
-        console.log('Pinecone Index Stats:', {
-          totalVectors: stats.totalRecordCount,
-          dimension: stats.dimension,
-          namespaces: stats.namespaces,
-          indexFullness: `${(stats.indexFullness * 100).toFixed(2)}%`
-        });
-      } catch (error) {
-        console.error('Error storing vectors in Pinecone:', error);
-        // Update document status to error
-        await supabase
-          .from('documents')
-          .update({ embedding_status: 'error' })
-          .eq('id', document.id);
-      }
-
-      // Add to active files
-      addFileToActive(file.originalFilename);
-      console.log('Added file to active files:', file.originalFilename);
-      console.log('Current active files:', getActiveFiles());
-
-      console.log(`File uploaded and processed successfully: ${file.originalFilename} (${fileType})`);
-
-      return res.status(200).json({
-        message: 'File uploaded and processed successfully',
-        fileName: file.originalFilename,
-        type: fileType,
-        documentId: document.id
-      });
-    } catch (error) {
-      console.error('Processing error:', error);
-      // Update document status to error
-      await supabase
-        .from('documents')
-        .update({ embedding_status: 'error' })
-        .eq('id', document.id);
-      return res.status(500).json({ error: `Failed to process ${fileType.includes('pdf') ? 'PDF' : 'audio'} file` });
-    }
+    res.status(200).json({ 
+      success: true, 
+      document,
+      url: blob.url
+    });
   } catch (error) {
     console.error('Upload error:', error);
-    return res.status(500).json({ error: 'Upload failed' });
+    res.status(500).json({ error: error.message });
   }
 }

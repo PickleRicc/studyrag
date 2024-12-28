@@ -7,17 +7,20 @@ const useActiveFilesStore = create(
     persist(
         (set) => ({
             activeFiles: [],
-            setActiveFiles: (files) => set({ activeFiles: files }),
+            setActiveFiles: (files) => set({ 
+                activeFiles: files.map(file => file?.name || file)
+            }),
             addActiveFile: (file) => set((state) => ({
-                activeFiles: [...new Set([...state.activeFiles, file])]
+                activeFiles: [...new Set([...state.activeFiles, file?.name || file])]
             })),
             removeActiveFile: (file) => set((state) => ({
-                activeFiles: state.activeFiles.filter(f => f !== file)
+                activeFiles: state.activeFiles.filter(f => f !== (file?.name || file))
             })),
             clearActiveFiles: () => set({ activeFiles: [] })
         }),
         {
-            name: 'active-files-storage'
+            name: 'active-files-storage',
+            version: 1,
         }
     )
 );

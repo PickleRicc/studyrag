@@ -11,7 +11,7 @@ export async function middleware(req) {
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         get: (name) => req.cookies.get(name)?.value,
@@ -29,18 +29,15 @@ export async function middleware(req) {
       return res
     }
 
+    // If there's no session and we're not on an auth page, redirect to signin
     const isAuthPage = req.nextUrl.pathname.startsWith('/auth/')
-    const isAuthenticated = !!session
+    if (!session && !isAuthPage) {
+      return NextResponse.redirect(new URL('/auth/signin', req.url))
+    }
 
-    console.log('Current path:', req.nextUrl.pathname)
-    console.log('Is auth page:', isAuthPage)
-    console.log('Is authenticated:', isAuthenticated)
-
-    // If authenticated and trying to access auth pages, redirect to home
-    if (isAuthenticated && isAuthPage) {
-      console.log('Redirecting to home...')
-      const redirectUrl = new URL('/', req.url)
-      return NextResponse.redirect(redirectUrl)
+    // If there is a session and we're on an auth page, redirect to home
+    if (session && isAuthPage) {
+      return NextResponse.redirect(new URL('/', req.url))
     }
 
     return res

@@ -1,9 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  env: {
-    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-    PINECONE_API_KEY: process.env.PINECONE_API_KEY,
+  experimental: {
+    serverActions: true,
   },
-};
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production',
+  },
+}
 
 export default nextConfig;

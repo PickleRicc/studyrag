@@ -1,5 +1,3 @@
-'use client';
-
 import { useState, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useActiveFiles } from '../hooks/useActiveFiles';
@@ -75,7 +73,7 @@ const FileUpload = ({ onUploadSuccess }) => {
                 formData.append('isFirstFile', i === 0 ? 'true' : 'false');
                 formData.append('userId', user.id);
 
-                const response = await fetch('/api/upload', {
+                const response = await fetch('/api/blob/upload', {
                     method: 'POST',
                     body: formData,
                 });
@@ -92,7 +90,7 @@ const FileUpload = ({ onUploadSuccess }) => {
                         documentId: data.documentId
                     });
                 }
-                addActiveFile(file.name);
+                addActiveFile(data.fileName);
             } catch (err) {
                 errors.push(`${file.name}: ${err.message}`);
             }

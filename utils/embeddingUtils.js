@@ -12,10 +12,14 @@ const openai = new OpenAI({
  */
 export async function generateEmbedding(text) {
     try {
+        if (!text || typeof text !== 'string') {
+            throw new Error('Invalid input: text must be a non-empty string');
+        }
+
         const response = await openai.embeddings.create({
             model: "text-embedding-3-small",
-            input: text,
-            encoding_format: "float",
+            input: text.slice(0, 8191), // Ensure we don't exceed token limit
+            dimensions: 1536
         });
         
         return response.data[0].embedding;
